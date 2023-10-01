@@ -3,12 +3,13 @@ from PIL import ImageTk, Image, ImageFont, ImageDraw
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
-from email import encoders
 from CTkColorPicker import *
+from email import encoders
 from pathlib import Path
 import urllib.request
 import customtkinter
 import pandas as pd
+import webbrowser
 import functools
 import threading
 import smtplib
@@ -352,11 +353,34 @@ def get_max_font_size(textbox_coords):
 
 def help():
     helpwindow = customtkinter.CTkToplevel(master = app)
+    helpwindow.minsize(750, 550)
     helpwindow.title("Help")
     helpwindow.grid_columnconfigure((0), weight = 1)
     helpwindow.grid_rowconfigure((0), weight = 1)
-    HelpScroll = customtkinter.CTkScrollableFrame(master = helpwindow, fg_color = "grey30")
-    HelpScroll.grid(row = 0, column = 0, rowspan = 2, padx = (20,20), pady = (20,20), sticky = "nsew")
+    HelpScroll = customtkinter.CTkFrame(master = helpwindow, fg_color = "grey30")
+    HelpScroll.pack(padx = (5,5), pady = (5,5), side="top", expand=1, fill="both")
+    HelpText = tkinter.Text(master = HelpScroll, font = ("",18))
+    HelpText.pack(side="top", expand=1, fill="both")
+    HelpText.tag_configure("link", foreground="lightblue", underline=True)
+    HelpText.tag_bind("link", "<Button-1>", open_link)
+    HelpText.insert("1.0", "1) Click on the Import template button and then select the Certificate template that you want to use. The template should be in an commonly used image format.\n \n")
+    HelpText.insert("3.0", "2) Click on the Import spreadsheet button and then select the a csv or an excel file that contains atleast two rows, names and email the the list of names and mail that you want to send to.\n \n")
+    HelpText.insert("5.0", "3) Import a google font. Go to fonts.google.com and then choose your font. once you have the link open the link in a browser. There will be a list of links for different fonts. Choose the link that is applicable and then ppasted it in the textbox. then click on open.\n \n")
+    HelpText.insert("7.0", "4) Adjust the crosshairs so that you form a textbox in the empty space where the name should go. Once you stop dragging and leave the cursor the text will update to show you the longest name with the proper font size to fit there.\n \n")
+    HelpText.insert("9.0", "5) Select the Text tab and drag the color on the color wheel to adjust the font color.\n\n")
+    HelpText.insert("11.0", "6) Click on send Certificate.\n \n")
+    HelpText.insert("13.0", "7) Follow this procedure for the time being to send email through SMTP using this app.\n \n")
+    HelpText.insert("15.0", "Setup Gmail to send emails using this app.", "link")
+    HelpText.insert("17.0", "\n \n")
+
+    HelpText.insert("end", "The rest of the procedure is explained as you go through them.")
+    HelpText.configure(state="disabled")
+    Donebutton = customtkinter.CTkButton(master = helpwindow, width = 60, height = 25, text="Cancel", command=lambda: mailing.destroy())
+    Donebutton.pack(side = 'right', padx = (5,5), pady = (5,5), anchor='s')
+
+
+def open_link(event):
+    webbrowser.open("https://www.youtube-nocookie.com/embed/g_j6ILT-X0k?start=25&end=166&autoplay=1")
 
 def ask_color():
     global font_color, image_coords, crosshair1_coords, crosshair2_coords, written
