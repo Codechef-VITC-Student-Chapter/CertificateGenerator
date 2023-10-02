@@ -1,0 +1,14 @@
+#Ignore External builder
+CTkColorPicker/
+
+#Ignore Files used to build binaries and spec files
+dist/
+build/
+CertSmith.spec
+
+#Ignore virtual environments if any
+venv/
+
+#Ignore builder script
+datascript.sh
+

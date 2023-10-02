@@ -12,6 +12,7 @@ import pandas as pd
 import webbrowser
 import functools
 import threading
+import platform
 import smtplib
 import tkinter
 import json
@@ -627,6 +628,10 @@ if __name__  ==  "__main__":
     NameFrame = NameFrame.filter(items=['name', 'email'])
     font_url = dirname / "preload" / 'Roboto.woff'
     #print(font_url)
+    if platform.system() == 'Windows':
+        file_path = 'file:///'
+    else:
+        file_path = 'file://'
     font_url_file = urllib.request.urlopen("file://"+str(font_url)).read()
     font_file = io.BytesIO(font_url_file)
     font = ImageFont.truetype(font_file, 15)
