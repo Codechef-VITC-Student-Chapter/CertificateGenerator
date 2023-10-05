@@ -1,13 +1,18 @@
 from tkinter.filedialog import askopenfilename, askdirectory
-from PIL import ImageTk, Image, ImageFont, ImageDraw
+from CTkColorPicker import *
+import customtkinter
+
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
-from CTkColorPicker import *
-from email import encoders
+
+from PIL import ImageTk, Image, ImageFont, ImageDraw
 from pathlib import Path
 import urllib.request
-import customtkinter
 import pandas as pd
 import webbrowser
 import functools
@@ -16,9 +21,9 @@ import platform
 import smtplib
 import tkinter
 import json
-import time
 import io
 import re
+import base64
 
 def drag_start(event):
     global crosshair1_coords, crosshair2_coords, crosshair1x, crosshair1y, crosshair2x, crosshair2y
@@ -353,7 +358,7 @@ def get_max_font_size(textbox_coords):
     return min_font_size
 
 def help():
-    helpwindow = customtkinter.CTkToplevel(master = app)
+    helpwindow = customtkinter.CTkToplevel(master = root)
     helpwindow.minsize(750, 550)
     helpwindow.title("Help")
     helpwindow.grid_columnconfigure((0), weight = 1)
@@ -370,15 +375,42 @@ def help():
     HelpText.insert("7.0", "4) Adjust the crosshairs so that you form a textbox in the empty space where the name should go. Once you stop dragging and leave the cursor the text will update to show you the longest name with the proper font size to fit there.\n \n")
     HelpText.insert("9.0", "5) Select the Text tab and drag the color on the color wheel to adjust the font color.\n\n")
     HelpText.insert("11.0", "6) Click on send Certificate.\n \n")
-    HelpText.insert("13.0", "7) Follow this procedure for the time being to send email through SMTP using this app.\n \n")
-    HelpText.insert("15.0", "Setup Gmail to send emails using this app.", "link")
-    HelpText.insert("17.0", "\n \n")
+    HelpText.insert("13.0", "7a) Or you can login using google OAuth pby clicking on the sign in to google button.\n \n")
+    HelpText.insert("15.0", "7b) Follow this procedure for the time being to send email through SMTP using this app.\n \n")
+    HelpText.insert("17.0", "Setup Gmail to send emails using this app through SMTP.", "link")
+    HelpText.insert("19.0", "\n \n")
 
     HelpText.insert("end", "The rest of the procedure is explained as you go through them.")
     HelpText.configure(state="disabled")
-    Donebutton = customtkinter.CTkButton(master = helpwindow, width = 60, height = 25, text="Cancel", command=lambda: mailing.destroy())
+    Donebutton = customtkinter.CTkButton(master = helpwindow, width = 60, height = 25, text="Cancel", command=lambda: helpwindow.destroy())
     Donebutton.pack(side = 'right', padx = (5,5), pady = (5,5), anchor='s')
 
+def PrivacyPolicy():
+    PrivacyPolicyWindow = customtkinter.CTkToplevel(master = root)
+    PrivacyPolicyWindow.minsize(450, 250)
+    PrivacyPolicyWindow.geometry("450x250")
+    PrivacyPolicyWindow.title("Privacy Policy")
+    PrivacyPolicyWindow.grid_columnconfigure((0), weight = 1)
+    PrivacyPolicyWindow.grid_rowconfigure((0), weight = 1)
+    PrivacyFrame = customtkinter.CTkFrame(master = PrivacyPolicyWindow, fg_color = "grey30", width=450, height=200)
+    PrivacyFrame.pack(padx = (5,5), pady = (5,5), side="top")
+    PrivacyText = tkinter.Text(master = PrivacyFrame, font = ("",12), width=int(450/6), height=int(200/15), fg="gray75")
+    PrivacyText.pack(side="top")
+    PrivacyText.insert("1.0", "If you use Google OAuth method for login:\n")
+    PrivacyText.insert("2.0", "    \u29bf Login information will be deleted on closing 'sendcertificate' \n")
+    PrivacyText.insert("3.0", "        window or when all the emails have been sent.\n")
+    PrivacyText.insert("4.0", "    \u29bf Your data will be deleted once the app closes.\n \n")
+    PrivacyText.insert("6.0", "If you use SMTP method for login:\n")
+    PrivacyText.insert("7.0", "    \u29bf The last used SMTP login information will be saved for autofilling.\n")
+    PrivacyText.insert("8.0", "    \u29bf Your data will not be used for tracking.\n \n")
+
+    PrivacyText.insert("10.0", "For further information contact the developer\n")
+    PrivacyText.insert("11.0", "kewin.joshua@gmail.com\n \n")
+    PrivacyText.insert("end", "                                                                  \u00A9 CodeChef VITCC Student Chapter\n All rights reserved.\n \n")
+
+    PrivacyText.configure(state="disabled")
+    Donebutton = customtkinter.CTkButton(master = PrivacyPolicyWindow, width = 60, height = 25, text="Cancel", command=lambda: PrivacyPolicyWindow.destroy())
+    Donebutton.pack(side = 'right', padx = (5,5), pady = (5,5), anchor='s')
 
 def open_link(event):
     webbrowser.open("https://www.youtube-nocookie.com/embed/g_j6ILT-X0k?start=25&end=166&autoplay=1")
@@ -401,8 +433,38 @@ def color_select(color):
             if written:
                 write_on_image(image_coords, crosshair1_coords, crosshair2_coords)
 
+def CreateService():
+    global service, CLIENT_SECRET_FILE, TOKEN_FILE, SCOPES
+
+    cred = None
+    if Path.exists(TOKEN_FILE):
+        cred = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+
+    if not cred or not cred.valid:
+        if cred and cred.expired and cred.refresh_token:
+            cred.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES, redirect_uri=None)
+            cred = flow.run_local_server()
+        with open(TOKEN_FILE, 'w') as token:
+            token.write(cred.to_json())
+
+    try:
+        service = build(serviceName = 'gmail', version = 'v1', credentials=cred)
+        SaveLocation()
+    except Exception as e:
+        tkinter.messagebox.showerror("Unable to Connect", f"Traceback:{e}")
+    
+def CloseWindow():
+    global mailing, TOKEN_FILE
+    TOKEN_FILE.unlink(missing_ok=True)
+    mailing.destroy()
+
+
 def send_email():
-    global mailing, getmail, Back, Next, Cancel
+    global mailing, getmail, Back, Next, Cancel, service, TOKEN_FILE
+    service = None
+    TOKEN_FILE.unlink(missing_ok=True)
     try:
         for widget in getmail.winfo_children():
             widget.destroy()
@@ -416,7 +478,7 @@ def send_email():
 
         Next = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Next", command=lambda: confirmation(senderemail.get(), senderpassword.get()))
         Next.pack(side = 'right', padx = (5,10), pady = (5,5), anchor='s')
-        Cancel = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Cancel", command=lambda: mailing.destroy())
+        Cancel = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Cancel", command=CloseWindow)
         Cancel.pack(side = 'right', padx = (5,5), pady = (5,5), anchor='s')
     else:
         Next.configure(command=lambda: confirmation(senderemail.get(), senderpassword.get()))
@@ -430,6 +492,12 @@ def send_email():
         passwordlabel.pack(side = 'top', padx = (5,5), pady = (5,0), anchor="w")
         senderpassword = customtkinter.CTkEntry(master = getmail, placeholder_text = "Password")
         senderpassword.pack(side = 'top', padx = (5,5), pady = (0,5), fill="x", anchor="e")
+        gimagepath = Path(__file__).parent / "preload" / "btn_google_signin_dark_normal_web.png"
+        #googleimage =  customtkinter.CTkImage(Image.open(gimagepath))
+        googleimage =  tkinter.PhotoImage(file=gimagepath)
+        gmailbutton = customtkinter.CTkButton(master = getmail, image = googleimage, text = "", corner_radius=0, border_spacing=0, border_width=0, command = CreateService)
+        gmailbutton.pack(side = 'top', padx = (5,5), pady = (0,5))
+
         try:
             user_credentials_filepath = Path(__file__).parent / "preload" / 'user_credentials.json'
             with open(user_credentials_filepath, 'r') as user_credential_file:
@@ -441,7 +509,7 @@ def send_email():
         except:
             print("except loop")
 
-        mailavailability = customtkinter.CTkLabel(master = getmail, text = "*Currently only gmail is supported", text_color="grey")
+        mailavailability = customtkinter.CTkLabel(master = getmail, text = "*Currently only gmail is supported.", text_color="grey")
         mailavailability.pack(side = 'top', padx = (5,5), pady = (5,0), anchor="w")
 
 def confirmation(senderemail, senderpassword):
@@ -453,7 +521,7 @@ def confirmation(senderemail, senderpassword):
         try:
             server.login(senderemail,senderpassword)
         except smtplib.SMTPAuthenticationError:
-            tkinter.messagebox.showerror('Login Error', 'Check if email or password is entered incorrectly.')
+            tkinter.messagebox.showerror('Login Error', 'Check if email or password is correct.')
         else:
             server.quit()
             user_credentials_filepath = Path(__file__).parent / "preload" / 'user_credentials.json'
@@ -469,16 +537,14 @@ def confirmation(senderemail, senderpassword):
                 widget.destroy()
             emaillabel = customtkinter.CTkLabel(master = getmail, text = f"Your Email is\n{senderemail}")
             emaillabel.pack(side = 'top', padx = (5,5), pady = (5,0))
-            passwordlabel = customtkinter.CTkLabel(master = getmail, text = f"Your Password is\n{senderpassword}")
-            passwordlabel.pack(side = 'top', padx = (5,5), pady = (5,0))
-            Next.configure(command=savelocation)
+            Next.configure(command=SaveLocation)
             try:
                 Back.configure(command=send_email)
             except:
                 Back = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Back", command=send_email)
                 Back.pack(side = 'left', padx = (5,10), pady = (5,5), anchor='s')
     else:
-        tkinter.messagebox.showerror('Invalid Email', 'Check if email is entered incorrectly.')
+        tkinter.messagebox.showerror('Invalid Email', 'Check if email is entered correct.')
         
 def select_directory():
     global file_directory_var
@@ -502,15 +568,19 @@ def edit_path(state):
 
 
 
-def savelocation():
-    global mailing, getmail, Next, Cancel, Back, select_directory_button, file_directory_var
+def SaveLocation():
+    global mailing, getmail, Next, Cancel, Back, select_directory_button, file_directory_var, service
+    mailing.lift()
     for widget in getmail.winfo_children():
         widget.destroy()
     user_credentials_filepath = Path(__file__).parent / "preload" / 'user_credentials.json'
-    with open(user_credentials_filepath, 'r') as user_credential_file:
-        user_credentials = json.load(user_credential_file)
-        Back.configure(command=lambda: confirmation(user_credentials["email"],user_credentials["password"]))
-    Next.configure(command=lambda: sending(save_file.get()))
+    if service:
+        Back = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Back", command=send_email)
+    else:
+        with open(user_credentials_filepath, 'r') as user_credential_file:
+            user_credentials = json.load(user_credential_file)
+            Back.configure(command=lambda: confirmation(user_credentials["email"],user_credentials["password"]))
+    Next.configure(command=lambda: EmailConstruct(save_file.get()))
     save_file = customtkinter.StringVar(value="No")
     save_file_checkbox = customtkinter.CTkCheckBox(master = getmail, text="do you want to create a copy of the certificates locally as well?",
                                                    variable = save_file, onvalue = "Yes", offvalue = "No", command = lambda:edit_path(save_file.get()))
@@ -523,9 +593,42 @@ def savelocation():
         master=getmail, text="Select Directory", command=select_directory, state = 'disabled')
     select_directory_button.pack(side='top', padx=(5, 5), pady=(0, 5))
             
+def EmailConstruct(file_directory_to_save_to):
+    global save_file, mailing, getmail, Next, Cancel, Back, file_directory_var
+    save_file = file_directory_to_save_to
+    for widget in getmail.winfo_children():
+        widget.destroy()
+    SenderFrame = customtkinter.CTkFrame(master = getmail, fg_color="transparent")
+    SenderFrame.pack(padx = (5,5), pady = (5,0), side = 'top', fill = "x", expand = 1)
+    SenderLabel = customtkinter.CTkLabel(master = SenderFrame, text = "From:", text_color="gray60")
+    SenderLabel.pack(side = 'left', padx = (5,5), pady = (0,0), anchor="w")
+    SenderEntry = customtkinter.CTkEntry(master=SenderFrame, state = 'disabled', textvariable = customtkinter.StringVar(value = 'you@examplemail.com'))
+    SenderEntry.pack(side='left', padx=(5, 5), pady=(0, 5), fill="x", expand=1)
 
-def sending(save_file):
-    global mailing, getmail, Next, Cancel, Back, crosshair1_coords, crosshair2_coords, font_color, file_directory_var
+    ReceiverFrame = customtkinter.CTkFrame(master = getmail, fg_color="transparent")
+    ReceiverFrame.pack(padx = (5,5), pady = (5,0), side = 'top', fill = "x", expand = 1)
+    ReceiverLabel = customtkinter.CTkLabel(master = ReceiverFrame, text = "To:", text_color="gray60")
+    ReceiverLabel.pack(side = 'left', padx = (5,5), pady = (0,0), anchor="w")
+    ReceiverEntry = customtkinter.CTkEntry(master=ReceiverFrame, state = 'disabled', textvariable = customtkinter.StringVar(value = 'participant@examplemail.com'))
+    ReceiverEntry.pack(side='left', padx=(5, 5), pady=(0, 5), fill="x", expand=1)
+
+    SubjectFrame = customtkinter.CTkFrame(master = getmail, fg_color="transparent")
+    SubjectFrame.pack(padx = (5,5), pady = (5,0), side = 'top', fill = "x", expand = 1)
+    SubjectLabel = customtkinter.CTkLabel(master = SubjectFrame, text = "Subject:", text_color="gray60")
+    SubjectLabel.pack(side = 'left', padx = (5,5), pady = (0,0), anchor="w")
+    SubjectEntry = customtkinter.CTkEntry(master=SubjectFrame, textvariable = customtkinter.StringVar())
+    SubjectEntry.pack(side='left', padx=(5, 5), pady=(0, 5), fill="x", expand=1)
+
+    BodyText = tkinter.Text(master = getmail, font = ("",15), width=int(75), height=int(15))
+    BodyText.pack(side="top", expand=1, fill="both")
+    SubjectLabel = customtkinter.CTkLabel(master = getmail, text = "Write {name} to fill in with participant name", text_color="gray60")
+    SubjectLabel.pack(side = 'top', padx = (5,5), pady = (0,0), anchor="w")
+    Back.configure(command=SaveLocation)
+    Next.configure(command=lambda: sending(str(SubjectEntry.get()), str(BodyText.get("1.0",'end-1c'))))
+    
+
+def sending(SubjectText, BodyText):
+    global mailing, getmail, Next, Cancel, Back, crosshair1_coords, crosshair2_coords, font_color, file_directory_var, save_file
     for widget in getmail.winfo_children():
         widget.destroy()
     Back.destroy()
@@ -547,11 +650,6 @@ def sending(save_file):
     progressbar.pack(padx = (10,10), pady = (10,5), side = 'bottom', fill = "x")
     progressbar.set(0)
     print(progressbar.get())
-    user_credentials_filepath = Path(__file__).parent / "preload" / 'user_credentials.json'
-    with open(user_credentials_filepath, 'r') as user_credential_file:
-        user_credentials = json.load(user_credential_file)
-        sender_email = user_credentials["email"]
-        sender_password = user_credentials["password"]
 
     for index, row in NameFrame.iterrows():
         getmail.update_idletasks() 
@@ -566,19 +664,18 @@ def sending(save_file):
 
 
         msg = MIMEMultipart()
-        msg['From'] = sender_email
         msg['To'] = email
-        msg['Subject'] = 'Certificate'
+        msg['Subject'] = SubjectText.replace("{name}", name)
 
         # Add text to your email
-        body = "Please find your participation certificate attached."
+        body = BodyText.replace("{name}", name)
         msg.attach(MIMEText(body, 'plain'))
         if save_file=="Yes":
-            sub_image.save(Path(file_directory_var.get()) / "preload" / f"{email}.jpg", 'JPEG')
-            with open(Path(file_directory_var.get()) / "preload" / f"{email}.jpg", 'rb') as stream:
+            sub_image.save(Path(file_directory_var.get()) / f"{email}.jpg", 'JPEG')
+            with open(Path(file_directory_var.get()) / f"{email}.jpg", 'rb') as stream:
                 NamedCert = stream.read()
                 image = MIMEImage(NamedCert)
-            image.add_header('Content-Disposition', 'attachment', filename='Certificate.jpg')
+            image.add_header('Content-Disposition', 'attachment', filename=f"{email}-Certificate.jpg")
             msg.attach(image)
         else:
             stream = io.BytesIO()
@@ -586,7 +683,7 @@ def sending(save_file):
             stream.seek(0)
             NamedCert = stream.read()
             attachment = MIMEImage(NamedCert)
-            attachment.add_header('Content-Disposition', 'attachment', filename='your_image.jpg')
+            attachment.add_header('Content-Disposition', 'attachment', filename=f"{email}-Certificate.jpg")
             msg.attach(attachment)
 
         resize_factor = min(Canvas.winfo_width()/sub_image.width,Canvas.winfo_height()/sub_image.height)
@@ -599,16 +696,29 @@ def sending(save_file):
         print(progressbar.cget("determinate_speed"))
         progressbar.step()
         print(progressbar.get())
-        try:
-            smtp_server = smtplib.SMTP('smtp.gmail.com', 587)
-            smtp_server.starttls()
-            smtp_server.login(sender_email, sender_password)
-            text = msg.as_string()
-            smtp_server.sendmail(sender_email, email, text)
-            smtp_server.quit()
-            print('Email sent successfully!')
-        except Exception as e:
-            print('Error sending email:', str(e))
+        if service:
+            message = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+            message = service.users().messages().send(
+                userId="me",
+                body={'raw':message}
+            ).execute()
+        else:
+            user_credentials_filepath = Path(__file__).parent / "preload" / 'user_credentials.json'
+            with open(user_credentials_filepath, 'r') as user_credential_file:
+                user_credentials = json.load(user_credential_file)
+                sender_email = user_credentials["email"]
+                sender_password = user_credentials["password"]
+                msg['From'] = sender_email
+            try:
+                smtp_server = smtplib.SMTP('smtp.gmail.com', 587)
+                smtp_server.starttls()
+                smtp_server.login(sender_email, sender_password)
+                text = msg.as_string()
+                smtp_server.sendmail(sender_email, email, text)
+                smtp_server.quit()
+                print('Email sent successfully!')
+            except Exception as e:
+                print('Error sending email:', str(e))
 
     Done = customtkinter.CTkButton(master = mailing, width = 60, height = 25, text="Done", command=lambda: mailing.destroy())
     Done.pack(side = 'right', padx = (5,5), pady = (5,5), anchor='s')
@@ -617,6 +727,7 @@ def sending(save_file):
 
 if __name__  ==  "__main__":
     #predefined datas
+    service = None
     dirname = Path(__file__).parent
     #print(dirname)
     filepath = dirname /  "preload" / 'codechefXvitcc.png'
@@ -641,18 +752,23 @@ if __name__  ==  "__main__":
     longestname = max(NameFrame['name'], key = len)
     written  = False
     font_color = (0, 0, 0)  # RGB color tuple
+    CLIENT_SECRET_FILE = dirname / 'preload' / 'client_secrets.json'
+    TOKEN_FILE = dirname / 'preload' / "token.json"
+    SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
 
-    app = customtkinter.CTk()
+    root = customtkinter.CTk()
     app_image = dirname /  "preload" / 'CertSmith icon type 2 iter 4.png'
     photo = tkinter.PhotoImage(file = app_image)
-    app.wm_iconphoto(False, photo)
-    app.title("CertSmith")
-    app.minsize(600,400)
-    app.geometry("600x400")
+    root.wm_iconphoto(False, photo)
+    root.title("CertSmith")
+    root.minsize(600,400)
+    root.geometry("600x400")
+    app = customtkinter.CTkFrame(master = root, fg_color="transparent")
+    app.pack(padx = (0,0), pady = (0,0), side = 'top', fill = "both", expand = 1)
 
     mainframe = customtkinter.CTkFrame(master = app, fg_color="transparent")
-    mainframe.pack(padx = (10,5), pady = (10,10), side = 'left', fill = "both", expand = 1)
+    mainframe.pack(padx = (10,5), pady = (10,0), side = 'left', fill = "both", expand = 1)
     mainframe.grid_columnconfigure((0), weight = 1)
     mainframe.grid_rowconfigure((0), weight = 10)
     #mainframe.grid_rowconfigure((1), weight = 1)
@@ -692,7 +808,7 @@ if __name__  ==  "__main__":
     
     #tabview (importing all necessary templates, font, and name&email list)
     editbar = customtkinter.CTkFrame(master = app, width = 175)
-    editbar.pack(padx = (5,10), pady = (10,10), side = 'left', fill = "y", expand = 0)
+    editbar.pack(padx = (5,10), pady = (10,0), side = 'left', fill = "y", expand = 0)
     tabview = customtkinter.CTkTabview(master = editbar, fg_color = "gray30", width = 175)
     tabview.pack(padx = (0,0), pady = (0,0), side = 'top', fill = "y", expand = 1)
     Document = tabview.add("Document")
@@ -711,8 +827,18 @@ if __name__  ==  "__main__":
     colorpicker = CTkColorPicker(master = Text, width=215, orientation="horizontal", command=lambda e:color_select(e))
     colorpicker.pack(padx=(0,0), pady=(5,5), side="top")
 
-    QuestionBtn = customtkinter.CTkButton(master = editbar, text = "Help", width = 40, height = 20, font = ("",-10), command = help)
-    QuestionBtn.pack(padx = (5,0), pady = (5,0), side='bottom', anchor='e')
+    HelpBtn = customtkinter.CTkButton(master = editbar, text = "Help", width = 40, height = 20, font = ("",-10), command = help)
+    HelpBtn.pack(padx = (5,0), pady = (5,0), side='bottom', anchor='e')
     SendCertificates = customtkinter.CTkButton(master = editbar, text = "Send Certificates", command = send_email)
     SendCertificates.pack(side = 'bottom', padx = (5,5), pady = (5,0))
+
+    infoframe = customtkinter.CTkFrame(master = root, fg_color="transparent")
+    infoframe.pack(padx = (0,0), pady = (0,0), side = 'bottom', fill = "x")
+    PrivacyPolicyBtn = customtkinter.CTkButton(master = infoframe, text = "Privacy Policy", width = 40, height = 20, font = ("",-10), command = PrivacyPolicy)
+    PrivacyPolicyBtn.pack(side = 'left', padx = (5,5), pady = (0,0))
+    Copyright = customtkinter.CTkLabel(master = infoframe, text = "\u00A9 CodeChef VITCC Student Chapter", text_color="gray60")
+    Copyright.pack(side = 'right', padx = (5,5), pady = (0,0), anchor="w")
+    # Report Bugs to kewin.joshua@gmail.com 
+
+
     app.mainloop()
