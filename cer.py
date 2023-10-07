@@ -726,6 +726,7 @@ def sending(SubjectText, BodyText):
 
 
 if __name__  ==  "__main__":
+    customtkinter.set_appearance_mode("dark")
     #predefined datas
     service = None
     dirname = Path(__file__).parent
