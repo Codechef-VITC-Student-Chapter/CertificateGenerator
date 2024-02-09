@@ -14,7 +14,7 @@ Certificate generator and email, desktop app
 
 6) Click on send Certificate.
 
-7a) Or you can login using google OAuth pby clicking on the sign in to google button.
+7a) Or you can login using google OAuth by clicking on the sign in to google button.
 
 7b) Follow this procedure to send email through SMTP using this app if you want to use SMTP in GMail.
 	https://www.youtube-nocookie.com/embed/g_j6ILT-X0k?start=25&end=166&autoplay=1
